@@ -1,0 +1,1074 @@
+import { 
+  type Song, 
+  type InsertSong, 
+  type SongReaction, 
+  type InsertSongReaction,
+  type SongFavorite,
+  type InsertSongFavorite,
+  type Entitlement,
+  type InsertEntitlement,
+  type User,
+  type ChannelHealth,
+  type InsertChannelHealth,
+  type Invite,
+  type InsertInvite,
+  type FeaturedContent,
+  type InsertFeaturedContent,
+  type SocialTrack,
+  type InsertSocialTrack,
+  type SocialPost,
+  type InsertSocialPost,
+  type SocialPostLike,
+  type InsertSocialPostLike,
+  type SocialPostComment,
+  type InsertSocialPostComment,
+  type Clip,
+  type InsertClip,
+  type LibraryItem,
+  type InsertLibraryItem,
+  type LibraryFolder,
+  type InsertLibraryFolder,
+  libraryFolders,
+  songs,
+  songReactions,
+  songFavorites,
+  adminUsers,
+  users,
+  entitlements,
+  orders,
+  orderItems,
+  channelHealth,
+  invites,
+  featuredContent,
+  socialTracks,
+  socialPosts,
+  socialPostLikes,
+  socialPostComments,
+  clips,
+  clipLikes,
+  libraryItems,
+  playbackProgress,
+  userStorage,
+  socialTrackSaves,
+  type AdminUser,
+  type InsertAdminUser,
+  type PwaInstallation,
+  type InsertPwaInstallation,
+  pwaInstallations,
+  type SavedItem,
+  type InsertSavedItem,
+  savedItems,
+  type Feature,
+  type InsertFeature,
+  type FeatureVote,
+  features,
+  featureVotes,
+} from "@shared/schema";
+import { db } from "./db";
+import { eq, and, desc, sql, lt, count, inArray } from "drizzle-orm";
+
+export interface IStorage {
+  getSongs(limit?: number, offset?: number): Promise<Song[]>;
+  getSongById(id: string): Promise<Song | undefined>;
+  getSongsByIds(ids: string[]): Promise<Song[]>;
+  createSong(song: InsertSong): Promise<Song>;
+  updateSong(id: string, song: Partial<InsertSong>): Promise<Song | undefined>;
+  deleteSong(id: string): Promise<boolean>;
+  
+  getSongReactions(songId: string): Promise<SongReaction[]>;
+  getUserSongReaction(userId: string, songId: string): Promise<SongReaction | undefined>;
+  createSongReaction(reaction: InsertSongReaction): Promise<SongReaction>;
+  deleteSongReaction(userId: string, songId: string): Promise<boolean>;
+  
+  getSongFavorites(userId: string): Promise<SongFavorite[]>;
+  isSongFavorited(userId: string, songId: string): Promise<boolean>;
+  createSongFavorite(favorite: InsertSongFavorite): Promise<SongFavorite>;
+  deleteSongFavorite(userId: string, songId: string): Promise<boolean>;
+  
+  getAdminUser(userId: string): Promise<AdminUser | undefined>;
+  createAdminUser(admin: InsertAdminUser): Promise<AdminUser>;
+  isRootAdmin(userId: string): Promise<boolean>;
+  
+  getUser(userId: string): Promise<User | undefined>;
+  getUsersByIds(ids: string[]): Promise<User[]>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByHandle(handle: string): Promise<User | undefined>;
+  getUserByProviderId(authProvider: string, authProviderId: string): Promise<User | undefined>;
+  updateUserHandle(userId: string, handle: string, changesThisMonth: number): Promise<User | undefined>;
+  upsertUser(userData: Partial<User> & { email?: string; authProvider?: string; authProviderId?: string }): Promise<User>;
+  updateUserStripeInfo(userId: string, stripeInfo: { stripeCustomerId?: string; stripeSubscriptionId?: string | null }): Promise<User | undefined>;
+  getUserEntitlements(userId: string): Promise<Entitlement[]>;
+  hasEntitlement(userId: string, songId: string): Promise<boolean>;
+  createEntitlement(entitlement: InsertEntitlement): Promise<Entitlement>;
+  createOrder(order: { userId: string; stripePaymentIntentId: string; status: string; totalAmount: number }): Promise<any>;
+  updateOrderStatus(orderId: string, status: string, completedAt?: Date): Promise<any>;
+  createOrderItem(item: { orderId: string; songId: string; price: number }): Promise<any>;
+  getOrderByPaymentIntent(paymentIntentId: string): Promise<any>;
+  
+  getAllChannels(): Promise<ChannelHealth[]>;
+  getOnlineChannels(): Promise<ChannelHealth[]>;
+  getChannelById(id: string): Promise<ChannelHealth | undefined>;
+  upsertChannel(channel: InsertChannelHealth): Promise<ChannelHealth>;
+  updateChannelStatus(id: string, isOnline: boolean, consecutiveFailures: number): Promise<ChannelHealth | undefined>;
+  getChannelsNeedingCheck(olderThanHours: number): Promise<ChannelHealth[]>;
+  getValidatedChannels(): Promise<ChannelHealth[]>;
+  toggleChannelValidation(id: string, validated: boolean): Promise<ChannelHealth | undefined>;
+  
+  // Analytics
+  getAnalytics(): Promise<{ uploads: number; purchases: number; promoted: number; libraryItems: number; registeredUsers: number }>;
+  
+  // Social tracks
+  createSocialTrack(track: InsertSocialTrack): Promise<SocialTrack>;
+  getPendingSocialTracks(): Promise<SocialTrack[]>;
+  getApprovedSocialTracks(): Promise<SocialTrack[]>;
+  getSocialTrackById(id: string): Promise<SocialTrack | undefined>;
+  getSocialTracksByUser(userId: string): Promise<SocialTrack[]>;
+  updateSocialTrackStatus(id: string, status: string, reviewedBy: string): Promise<SocialTrack | undefined>;
+  promoteSocialTrackToSong(trackId: string, songId: string): Promise<SocialTrack | undefined>;
+  submitTrackForSale(trackId: string): Promise<SocialTrack | undefined>;
+  deleteSocialTrack(id: string, userId: string): Promise<boolean>;
+  deleteSocialTrackAsAdmin(id: string): Promise<boolean>;
+  clearPendingSubmissions(): Promise<number>;
+  updateUserProfileImage(userId: string, profileImageUrl: string): Promise<User | undefined>;
+  
+  // Invites
+  createInvite(invite: InsertInvite): Promise<Invite>;
+  getInviteByCode(code: string): Promise<Invite | undefined>;
+  getInvitesByUser(userId: string): Promise<Invite[]>;
+  acceptInvite(code: string, userId: string): Promise<Invite | undefined>;
+  deleteInvite(id: string, userId: string): Promise<boolean>;
+  
+  // Featured content
+  getFeaturedContent(position: string): Promise<FeaturedContent | undefined>;
+  setFeaturedContent(content: InsertFeaturedContent): Promise<FeaturedContent>;
+  
+  // Social posts
+  createSocialPost(post: InsertSocialPost): Promise<SocialPost>;
+  getSocialPosts(limit?: number, offset?: number, opts?: { viewerId?: string; filter?: "public" | "private" | "saved" | "all" }): Promise<SocialPost[]>;
+  getSocialPostById(id: string): Promise<SocialPost | undefined>;
+  deleteSocialPost(id: string, authorId: string): Promise<boolean>;
+  likeSocialPost(userId: string, postId: string): Promise<boolean>;
+  unlikeSocialPost(userId: string, postId: string): Promise<boolean>;
+  getSocialPostLikes(userId: string, postIds: string[]): Promise<string[]>;
+  
+  // Social post comments
+  createSocialPostComment(comment: InsertSocialPostComment): Promise<SocialPostComment>;
+  getSocialPostComments(postId: string, limit?: number, offset?: number): Promise<SocialPostComment[]>;
+  deleteSocialPostComment(id: string, authorId: string): Promise<boolean>;
+  
+  // Clips
+  createClip(clip: InsertClip): Promise<Clip>;
+  getClips(limit?: number, offset?: number): Promise<Clip[]>;
+  getClipById(id: string): Promise<Clip | undefined>;
+  deleteClip(id: string, authorId: string): Promise<boolean>;
+  likeClip(userId: string, clipId: string): Promise<boolean>;
+  unlikeClip(userId: string, clipId: string): Promise<boolean>;
+  getClipLikes(userId: string, clipIds: string[]): Promise<string[]>;
+
+  // Library items
+  createLibraryItem(item: InsertLibraryItem): Promise<LibraryItem>;
+  getUserLibraryItems(userId: string, type?: string): Promise<LibraryItem[]>;
+  getUserStorageStats(userId: string): Promise<{ usedBytes: number; limitBytes: number; isAdmin: boolean }>;
+  moveLibraryItem(itemId: string, userId: string, folderId: string | null): Promise<LibraryItem | undefined>;
+  deleteLibraryItem(itemId: string, userId: string): Promise<boolean>;
+
+  // Library folders
+  createLibraryFolder(folder: InsertLibraryFolder): Promise<LibraryFolder>;
+  getUserLibraryFolders(userId: string): Promise<LibraryFolder[]>;
+  updateLibraryFolder(id: string, userId: string, name: string): Promise<LibraryFolder | undefined>;
+  deleteLibraryFolder(id: string, userId: string): Promise<boolean>;
+
+  // PWA installations
+  createPwaInstallation(install: InsertPwaInstallation): Promise<PwaInstallation>;
+  getPwaInstallations(limit?: number, offset?: number): Promise<PwaInstallation[]>;
+  getPwaInstallationCount(): Promise<number>;
+  getUserPwaInstallation(userId: string): Promise<PwaInstallation | undefined>;
+
+  // Saved items
+  getSavedItems(userId: string): Promise<SavedItem[]>;
+  saveItem(item: InsertSavedItem): Promise<SavedItem>;
+  unsaveItem(userId: string, contentType: string, contentId: string): Promise<boolean>;
+  isSaved(userId: string, contentType: string, contentId: string): Promise<boolean>;
+
+  // Features / Roadmap
+  getFeatures(status?: string): Promise<Feature[]>;
+  getFeatureById(id: string): Promise<Feature | undefined>;
+  createFeature(feature: InsertFeature): Promise<Feature>;
+  updateFeature(id: string, updates: Partial<InsertFeature>): Promise<Feature | undefined>;
+  deleteFeature(id: string): Promise<boolean>;
+  getUserVote(userId: string, featureId: string): Promise<FeatureVote | undefined>;
+  castVote(userId: string, featureId: string, voteType: "upvote" | "downvote"): Promise<void>;
+  removeVote(userId: string, featureId: string): Promise<void>;
+
+  // Account deletion
+  deleteUserAccount(userId: string): Promise<{ deletedFiles: string[] }>;
+}
+
+export class DatabaseStorage implements IStorage {
+  async getSongs(limit: number = 50, offset: number = 0): Promise<Song[]> {
+    return db.select().from(songs).orderBy(desc(songs.createdAt)).limit(limit).offset(offset);
+  }
+
+  async getSongById(id: string): Promise<Song | undefined> {
+    const [song] = await db.select().from(songs).where(eq(songs.id, id));
+    return song;
+  }
+
+  async getSongsByIds(ids: string[]): Promise<Song[]> {
+    if (ids.length === 0) return [];
+    return db.select().from(songs).where(inArray(songs.id, ids));
+  }
+
+  async createSong(song: InsertSong): Promise<Song> {
+    const [newSong] = await db.insert(songs).values(song).returning();
+    return newSong;
+  }
+
+  async updateSong(id: string, song: Partial<InsertSong>): Promise<Song | undefined> {
+    const [updated] = await db
+      .update(songs)
+      .set({ ...song, updatedAt: new Date() })
+      .where(eq(songs.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteSong(id: string): Promise<boolean> {
+    const result = await db.delete(songs).where(eq(songs.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  async getSongReactions(songId: string): Promise<SongReaction[]> {
+    return db.select().from(songReactions).where(eq(songReactions.songId, songId));
+  }
+
+  async getUserSongReaction(userId: string, songId: string): Promise<SongReaction | undefined> {
+    const [reaction] = await db
+      .select()
+      .from(songReactions)
+      .where(and(eq(songReactions.userId, userId), eq(songReactions.songId, songId)));
+    return reaction;
+  }
+
+  async createSongReaction(reaction: InsertSongReaction): Promise<SongReaction> {
+    const existing = await this.getUserSongReaction(reaction.userId, reaction.songId);
+    if (existing) {
+      const [updated] = await db
+        .update(songReactions)
+        .set({ type: reaction.type })
+        .where(and(eq(songReactions.userId, reaction.userId), eq(songReactions.songId, reaction.songId)))
+        .returning();
+      return updated;
+    }
+    const [newReaction] = await db.insert(songReactions).values(reaction).returning();
+    return newReaction;
+  }
+
+  async deleteSongReaction(userId: string, songId: string): Promise<boolean> {
+    const result = await db
+      .delete(songReactions)
+      .where(and(eq(songReactions.userId, userId), eq(songReactions.songId, songId)));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  async getSongFavorites(userId: string): Promise<SongFavorite[]> {
+    return db.select().from(songFavorites).where(eq(songFavorites.userId, userId));
+  }
+
+  async isSongFavorited(userId: string, songId: string): Promise<boolean> {
+    const [favorite] = await db
+      .select()
+      .from(songFavorites)
+      .where(and(eq(songFavorites.userId, userId), eq(songFavorites.songId, songId)));
+    return !!favorite;
+  }
+
+  async createSongFavorite(favorite: InsertSongFavorite): Promise<SongFavorite> {
+    const [newFavorite] = await db.insert(songFavorites).values(favorite).returning();
+    return newFavorite;
+  }
+
+  async deleteSongFavorite(userId: string, songId: string): Promise<boolean> {
+    const result = await db
+      .delete(songFavorites)
+      .where(and(eq(songFavorites.userId, userId), eq(songFavorites.songId, songId)));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  async getAdminUser(userId: string): Promise<AdminUser | undefined> {
+    const [admin] = await db.select().from(adminUsers).where(eq(adminUsers.userId, userId));
+    return admin;
+  }
+
+  async createAdminUser(admin: InsertAdminUser): Promise<AdminUser> {
+    const [newAdmin] = await db.insert(adminUsers).values(admin).returning();
+    return newAdmin;
+  }
+
+  async isRootAdmin(userId: string): Promise<boolean> {
+    const admin = await this.getAdminUser(userId);
+    return admin?.role === "root_admin";
+  }
+
+  async getUser(userId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    return user;
+  }
+
+  async getUsersByIds(ids: string[]): Promise<User[]> {
+    if (ids.length === 0) return [];
+    const uniqueIds = Array.from(new Set(ids));
+    return db.select().from(users).where(inArray(users.id, uniqueIds));
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+
+  async getUserByHandle(handle: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.handle, handle));
+    return user;
+  }
+
+  async updateUserHandle(userId: string, handle: string, changesThisMonth: number): Promise<User | undefined> {
+    const [user] = await db
+      .update(users)
+      .set({
+        handle,
+        handleLastChanged: new Date(),
+        handleChangesThisMonth: changesThisMonth.toString(),
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    return user;
+  }
+
+  async getUserByProviderId(authProvider: string, authProviderId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users)
+      .where(and(eq(users.authProvider, authProvider), eq(users.authProviderId, authProviderId)));
+    return user;
+  }
+
+  async upsertUser(userData: Partial<User> & { email?: string; authProvider?: string; authProviderId?: string }): Promise<User> {
+    // First try to find by provider ID (most reliable)
+    if (userData.authProvider && userData.authProviderId) {
+      const existingByProvider = await this.getUserByProviderId(userData.authProvider, userData.authProviderId);
+      if (existingByProvider) {
+        const [updated] = await db
+          .update(users)
+          .set({ ...userData, updatedAt: new Date() })
+          .where(eq(users.id, existingByProvider.id))
+          .returning();
+        return updated;
+      }
+    }
+    
+    // Then try by email
+    if (userData.email) {
+      const existingByEmail = await this.getUserByEmail(userData.email);
+      if (existingByEmail) {
+        const [updated] = await db
+          .update(users)
+          .set({ ...userData, updatedAt: new Date() })
+          .where(eq(users.id, existingByEmail.id))
+          .returning();
+        return updated;
+      }
+    }
+    
+    const [newUser] = await db.insert(users).values(userData as any).returning();
+    return newUser;
+  }
+
+  async updateUserStripeInfo(userId: string, stripeInfo: {
+    stripeCustomerId?: string;
+    stripeSubscriptionId?: string | null;
+  }): Promise<User | undefined> {
+    const updateData: any = { updatedAt: new Date() };
+    if (stripeInfo.stripeCustomerId !== undefined) {
+      updateData.stripeCustomerId = stripeInfo.stripeCustomerId;
+    }
+    if (stripeInfo.stripeSubscriptionId !== undefined) {
+      updateData.stripeSubscriptionId = stripeInfo.stripeSubscriptionId;
+    }
+    const [user] = await db
+      .update(users)
+      .set(updateData)
+      .where(eq(users.id, userId))
+      .returning();
+    return user;
+  }
+
+  async getUserEntitlements(userId: string): Promise<Entitlement[]> {
+    return db.select().from(entitlements).where(eq(entitlements.userId, userId));
+  }
+
+  async hasEntitlement(userId: string, songId: string): Promise<boolean> {
+    const [entitlement] = await db
+      .select()
+      .from(entitlements)
+      .where(and(eq(entitlements.userId, userId), eq(entitlements.songId, songId)));
+    return !!entitlement;
+  }
+
+  async createEntitlement(entitlement: InsertEntitlement): Promise<Entitlement> {
+    const [newEntitlement] = await db.insert(entitlements).values(entitlement).returning();
+    return newEntitlement;
+  }
+
+  async createOrder(order: { userId: string; stripePaymentIntentId: string; status: string; totalAmount: number }) {
+    const [newOrder] = await db.insert(orders).values(order).returning();
+    return newOrder;
+  }
+
+  async updateOrderStatus(orderId: string, status: string, completedAt?: Date) {
+    const [updated] = await db
+      .update(orders)
+      .set({ status, completedAt })
+      .where(eq(orders.id, orderId))
+      .returning();
+    return updated;
+  }
+
+  async createOrderItem(item: { orderId: string; songId: string; price: number }) {
+    const [newItem] = await db.insert(orderItems).values(item).returning();
+    return newItem;
+  }
+
+  async getOrderByPaymentIntent(paymentIntentId: string) {
+    const [order] = await db.select().from(orders).where(eq(orders.stripePaymentIntentId, paymentIntentId));
+    return order;
+  }
+
+  async getAllChannels(): Promise<ChannelHealth[]> {
+    return db.select().from(channelHealth).orderBy(channelHealth.name);
+  }
+
+  async getOnlineChannels(): Promise<ChannelHealth[]> {
+    return db.select().from(channelHealth).where(eq(channelHealth.isOnline, true)).orderBy(channelHealth.name);
+  }
+
+  async getChannelById(id: string): Promise<ChannelHealth | undefined> {
+    const [channel] = await db.select().from(channelHealth).where(eq(channelHealth.id, id));
+    return channel;
+  }
+
+  async upsertChannel(channel: InsertChannelHealth): Promise<ChannelHealth> {
+    const existing = await this.getChannelById(channel.id);
+    if (existing) {
+      const [updated] = await db
+        .update(channelHealth)
+        .set({ ...channel, updatedAt: new Date() })
+        .where(eq(channelHealth.id, channel.id))
+        .returning();
+      return updated;
+    }
+    const [newChannel] = await db.insert(channelHealth).values(channel).returning();
+    return newChannel;
+  }
+
+  async updateChannelStatus(id: string, isOnline: boolean, consecutiveFailures: number): Promise<ChannelHealth | undefined> {
+    const [updated] = await db
+      .update(channelHealth)
+      .set({
+        isOnline,
+        consecutiveFailures,
+        lastChecked: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(channelHealth.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getChannelsNeedingCheck(olderThanHours: number): Promise<ChannelHealth[]> {
+    const cutoff = new Date(Date.now() - olderThanHours * 60 * 60 * 1000);
+    return db
+      .select()
+      .from(channelHealth)
+      .where(sql`${channelHealth.lastChecked} IS NULL OR ${channelHealth.lastChecked} < ${cutoff}`);
+  }
+
+  async getValidatedChannels(): Promise<ChannelHealth[]> {
+    return db.select().from(channelHealth).where(eq(channelHealth.validated, true)).orderBy(channelHealth.name);
+  }
+
+  async toggleChannelValidation(id: string, validated: boolean): Promise<ChannelHealth | undefined> {
+    const [updated] = await db.update(channelHealth)
+      .set({ validated, updatedAt: new Date() })
+      .where(eq(channelHealth.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Analytics
+  async getAnalytics(): Promise<{ uploads: number; purchases: number; promoted: number; libraryItems: number; registeredUsers: number }> {
+    const [uploadsResult] = await db.select({ count: count() }).from(socialTracks);
+    const [purchasesResult] = await db.select({ count: count() }).from(entitlements);
+    const [promotedResult] = await db.select({ count: count() }).from(socialTracks).where(eq(socialTracks.status, "approved"));
+    const [libraryResult] = await db.select({ count: count() }).from(entitlements);
+    const [usersResult] = await db.select({ count: count() }).from(users);
+    
+    return {
+      uploads: uploadsResult?.count || 0,
+      purchases: purchasesResult?.count || 0,
+      promoted: promotedResult?.count || 0,
+      libraryItems: libraryResult?.count || 0,
+      registeredUsers: usersResult?.count || 0,
+    };
+  }
+
+  // Social tracks
+  async getPendingSocialTracks(): Promise<SocialTrack[]> {
+    return db.select().from(socialTracks).where(
+      inArray(socialTracks.status, ["pending", "pending_sale"])
+    ).orderBy(desc(socialTracks.createdAt));
+  }
+
+  async getSocialTracksByUser(userId: string): Promise<SocialTrack[]> {
+    return db.select().from(socialTracks).where(eq(socialTracks.uploadedBy, userId)).orderBy(desc(socialTracks.createdAt));
+  }
+
+  async updateSocialTrackStatus(id: string, status: string, reviewedBy: string): Promise<SocialTrack | undefined> {
+    const [updated] = await db
+      .update(socialTracks)
+      .set({
+        status,
+        approved: status === "approved",
+        reviewedBy,
+        reviewedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(socialTracks.id, id))
+      .returning();
+    return updated;
+  }
+
+  async createSocialTrack(track: InsertSocialTrack): Promise<SocialTrack> {
+    const [created] = await db.insert(socialTracks).values(track).returning();
+    return created;
+  }
+
+  async getApprovedSocialTracks(): Promise<SocialTrack[]> {
+    return db.select().from(socialTracks).where(eq(socialTracks.status, "approved")).orderBy(desc(socialTracks.createdAt));
+  }
+
+  async getSocialTrackById(id: string): Promise<SocialTrack | undefined> {
+    const [track] = await db.select().from(socialTracks).where(eq(socialTracks.id, id));
+    return track;
+  }
+
+  async promoteSocialTrackToSong(trackId: string, songId: string): Promise<SocialTrack | undefined> {
+    const [updated] = await db
+      .update(socialTracks)
+      .set({
+        featuredInCatalogue: songId,
+        updatedAt: new Date(),
+      })
+      .where(eq(socialTracks.id, trackId))
+      .returning();
+    return updated;
+  }
+
+  async submitTrackForSale(trackId: string): Promise<SocialTrack | undefined> {
+    const [updated] = await db
+      .update(socialTracks)
+      .set({
+        status: "pending",
+        updatedAt: new Date(),
+      })
+      .where(eq(socialTracks.id, trackId))
+      .returning();
+    return updated;
+  }
+
+  async deleteSocialTrack(id: string, userId: string): Promise<boolean> {
+    const result = await db.delete(socialTracks).where(and(eq(socialTracks.id, id), eq(socialTracks.uploadedBy, userId)));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  async deleteSocialTrackAsAdmin(id: string): Promise<boolean> {
+    const result = await db.delete(socialTracks).where(eq(socialTracks.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  async clearPendingSubmissions(): Promise<number> {
+    const result = await db.delete(socialTracks).where(
+      inArray(socialTracks.status, ["pending", "pending_sale"])
+    );
+    return result.rowCount || 0;
+  }
+
+  async updateUserProfileImage(userId: string, profileImageUrl: string): Promise<User | undefined> {
+    const [updated] = await db
+      .update(users)
+      .set({ profileImageUrl, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
+  }
+
+  // Invites
+  async createInvite(invite: InsertInvite): Promise<Invite> {
+    const [newInvite] = await db.insert(invites).values(invite).returning();
+    return newInvite;
+  }
+
+  async getInviteByCode(code: string): Promise<Invite | undefined> {
+    const [invite] = await db.select().from(invites).where(eq(invites.inviteCode, code));
+    return invite;
+  }
+
+  async getInvitesByUser(userId: string): Promise<Invite[]> {
+    return db.select().from(invites).where(eq(invites.invitedBy, userId)).orderBy(desc(invites.createdAt));
+  }
+
+  async acceptInvite(code: string, userId: string): Promise<Invite | undefined> {
+    const [updated] = await db
+      .update(invites)
+      .set({ acceptedBy: userId, acceptedAt: new Date() })
+      .where(eq(invites.inviteCode, code))
+      .returning();
+    return updated;
+  }
+
+  async deleteInvite(id: string, userId: string): Promise<boolean> {
+    const [invite] = await db.select().from(invites).where(eq(invites.id, id));
+    if (!invite || invite.invitedBy !== userId || invite.acceptedBy) return false;
+    await db.delete(invites).where(eq(invites.id, id));
+    return true;
+  }
+
+  // Featured content
+  async getFeaturedContent(position: string): Promise<FeaturedContent | undefined> {
+    const [content] = await db
+      .select()
+      .from(featuredContent)
+      .where(and(eq(featuredContent.position, position), eq(featuredContent.isActive, true)))
+      .orderBy(desc(featuredContent.createdAt));
+    return content;
+  }
+
+  async setFeaturedContent(content: InsertFeaturedContent): Promise<FeaturedContent> {
+    // Deactivate any existing featured content for this position
+    await db
+      .update(featuredContent)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(featuredContent.position, content.position as string));
+    
+    // Create new featured content
+    const [newContent] = await db.insert(featuredContent).values(content).returning();
+    return newContent;
+  }
+
+  async createLibraryItem(item: InsertLibraryItem): Promise<LibraryItem> {
+    const [created] = await db.insert(libraryItems).values(item).returning();
+    return created;
+  }
+
+  async getUserLibraryItems(userId: string, type?: string): Promise<LibraryItem[]> {
+    if (type) {
+      return db.select().from(libraryItems).where(and(eq(libraryItems.userId, userId), eq(libraryItems.type, type))).orderBy(desc(libraryItems.createdAt));
+    }
+    return db.select().from(libraryItems).where(eq(libraryItems.userId, userId)).orderBy(desc(libraryItems.createdAt));
+  }
+
+  async getUserStorageStats(userId: string): Promise<{ usedBytes: number; limitBytes: number; isAdmin: boolean }> {
+    const FREE_LIMIT = 200 * 1024 * 1024; // 200MB
+    const adminUser = await this.getAdminUser(userId);
+    const isAdminUser = !!adminUser;
+    const items = await db.select({ fileSize: libraryItems.fileSize }).from(libraryItems)
+      .where(and(eq(libraryItems.userId, userId), eq(libraryItems.type, "upload")));
+    const usedBytes = items.reduce((sum, item) => sum + (item.fileSize || 0), 0);
+    return { usedBytes, limitBytes: isAdminUser ? Number.MAX_SAFE_INTEGER : FREE_LIMIT, isAdmin: isAdminUser };
+  }
+
+  async moveLibraryItem(itemId: string, userId: string, folderId: string | null): Promise<LibraryItem | undefined> {
+    const [updated] = await db
+      .update(libraryItems)
+      .set({ folderId })
+      .where(and(eq(libraryItems.id, itemId), eq(libraryItems.userId, userId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteLibraryItem(itemId: string, userId: string): Promise<boolean> {
+    const result = await db
+      .delete(libraryItems)
+      .where(and(eq(libraryItems.id, itemId), eq(libraryItems.userId, userId)));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  async createLibraryFolder(folder: InsertLibraryFolder): Promise<LibraryFolder> {
+    const [created] = await db.insert(libraryFolders).values(folder).returning();
+    return created;
+  }
+
+  async getUserLibraryFolders(userId: string): Promise<LibraryFolder[]> {
+    return db.select().from(libraryFolders)
+      .where(eq(libraryFolders.userId, userId))
+      .orderBy(libraryFolders.name);
+  }
+
+  async updateLibraryFolder(id: string, userId: string, name: string): Promise<LibraryFolder | undefined> {
+    const [updated] = await db
+      .update(libraryFolders)
+      .set({ name })
+      .where(and(eq(libraryFolders.id, id), eq(libraryFolders.userId, userId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteLibraryFolder(id: string, userId: string): Promise<boolean> {
+    // Move items in this folder back to root before deleting
+    await db.update(libraryItems)
+      .set({ folderId: null })
+      .where(and(eq(libraryItems.folderId, id), eq(libraryItems.userId, userId)));
+    const result = await db.delete(libraryFolders)
+      .where(and(eq(libraryFolders.id, id), eq(libraryFolders.userId, userId)));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  async createSocialPost(post: InsertSocialPost): Promise<SocialPost> {
+    const [created] = await db.insert(socialPosts).values(post).returning();
+    return created;
+  }
+
+  async getSocialPosts(
+    limit: number = 50,
+    offset: number = 0,
+    opts?: { viewerId?: string; filter?: "public" | "private" | "saved" | "all" },
+  ): Promise<SocialPost[]> {
+    const filter = opts?.filter ?? "public";
+    const viewerId = opts?.viewerId;
+
+    if (filter === "saved") {
+      if (!viewerId) return [];
+      const saved = await db
+        .select({ contentId: savedItems.contentId })
+        .from(savedItems)
+        .where(and(
+          eq(savedItems.userId, viewerId),
+          sql`${savedItems.contentType} IN ('post', 'drop')`,
+        ));
+      const ids = saved.map((s) => s.contentId);
+      if (ids.length === 0) return [];
+      const rows = await db
+        .select()
+        .from(socialPosts)
+        .where(and(
+          sql`${socialPosts.id} = ANY(${ids})`,
+          sql`(${socialPosts.isPrivate} = false OR ${socialPosts.authorId} = ${viewerId})`,
+        ))
+        .orderBy(desc(socialPosts.createdAt))
+        .limit(limit)
+        .offset(offset);
+      return rows;
+    }
+
+    if (filter === "private") {
+      if (!viewerId) return [];
+      return db
+        .select()
+        .from(socialPosts)
+        .where(and(eq(socialPosts.authorId, viewerId), eq(socialPosts.isPrivate, true)))
+        .orderBy(desc(socialPosts.createdAt))
+        .limit(limit)
+        .offset(offset);
+    }
+
+    if (filter === "all" && viewerId) {
+      return db
+        .select()
+        .from(socialPosts)
+        .where(sql`(${socialPosts.isPrivate} = false OR ${socialPosts.authorId} = ${viewerId})`)
+        .orderBy(desc(socialPosts.createdAt))
+        .limit(limit)
+        .offset(offset);
+    }
+
+    return db
+      .select()
+      .from(socialPosts)
+      .where(eq(socialPosts.isPrivate, false))
+      .orderBy(desc(socialPosts.createdAt))
+      .limit(limit)
+      .offset(offset);
+  }
+
+  async getSocialPostById(id: string): Promise<SocialPost | undefined> {
+    const [post] = await db.select().from(socialPosts).where(eq(socialPosts.id, id));
+    return post;
+  }
+
+  async deleteSocialPost(id: string, authorId: string): Promise<boolean> {
+    const result = await db.delete(socialPosts).where(and(eq(socialPosts.id, id), eq(socialPosts.authorId, authorId)));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  async likeSocialPost(userId: string, postId: string): Promise<boolean> {
+    const existing = await db.select().from(socialPostLikes)
+      .where(and(eq(socialPostLikes.userId, userId), eq(socialPostLikes.postId, postId)));
+    if (existing.length > 0) return false;
+    await db.insert(socialPostLikes).values({ userId, postId });
+    await db.update(socialPosts).set({ likesCount: sql`${socialPosts.likesCount} + 1` }).where(eq(socialPosts.id, postId));
+    return true;
+  }
+
+  async unlikeSocialPost(userId: string, postId: string): Promise<boolean> {
+    const result = await db.delete(socialPostLikes)
+      .where(and(eq(socialPostLikes.userId, userId), eq(socialPostLikes.postId, postId)));
+    if (result.rowCount && result.rowCount > 0) {
+      await db.update(socialPosts).set({ likesCount: sql`GREATEST(${socialPosts.likesCount} - 1, 0)` }).where(eq(socialPosts.id, postId));
+      return true;
+    }
+    return false;
+  }
+
+  async getSocialPostLikes(userId: string, postIds: string[]): Promise<string[]> {
+    if (postIds.length === 0) return [];
+    const likes = await db.select({ postId: socialPostLikes.postId }).from(socialPostLikes)
+      .where(and(eq(socialPostLikes.userId, userId), sql`${socialPostLikes.postId} = ANY(${postIds})`));
+    return likes.map(l => l.postId);
+  }
+
+  async createSocialPostComment(comment: InsertSocialPostComment): Promise<SocialPostComment> {
+    const [created] = await db.insert(socialPostComments).values(comment).returning();
+    await db.update(socialPosts).set({ commentsCount: sql`${socialPosts.commentsCount} + 1` }).where(eq(socialPosts.id, comment.postId));
+    return created;
+  }
+
+  async getSocialPostComments(postId: string, limit: number = 50, offset: number = 0): Promise<SocialPostComment[]> {
+    return db.select().from(socialPostComments)
+      .where(eq(socialPostComments.postId, postId))
+      .orderBy(desc(socialPostComments.createdAt))
+      .limit(limit).offset(offset);
+  }
+
+  async deleteSocialPostComment(id: string, authorId: string): Promise<boolean> {
+    const [comment] = await db.select().from(socialPostComments).where(eq(socialPostComments.id, id));
+    if (!comment) return false;
+    const result = await db.delete(socialPostComments)
+      .where(and(eq(socialPostComments.id, id), eq(socialPostComments.authorId, authorId)));
+    if (result.rowCount && result.rowCount > 0) {
+      await db.update(socialPosts).set({ commentsCount: sql`GREATEST(${socialPosts.commentsCount} - 1, 0)` }).where(eq(socialPosts.id, comment.postId));
+      return true;
+    }
+    return false;
+  }
+
+  async createClip(clip: InsertClip): Promise<Clip> {
+    const [created] = await db.insert(clips).values(clip).returning();
+    return created;
+  }
+
+  async getClips(limit: number = 50, offset: number = 0): Promise<Clip[]> {
+    return db.select().from(clips).orderBy(desc(clips.createdAt)).limit(limit).offset(offset);
+  }
+
+  async getClipById(id: string): Promise<Clip | undefined> {
+    const [clip] = await db.select().from(clips).where(eq(clips.id, id));
+    return clip;
+  }
+
+  async deleteClip(id: string, authorId: string): Promise<boolean> {
+    const result = await db.delete(clips).where(and(eq(clips.id, id), eq(clips.authorId, authorId)));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  async likeClip(userId: string, clipId: string): Promise<boolean> {
+    const existing = await db.select().from(clipLikes)
+      .where(and(eq(clipLikes.userId, userId), eq(clipLikes.clipId, clipId)));
+    if (existing.length > 0) return false;
+    await db.insert(clipLikes).values({ userId, clipId });
+    await db.update(clips).set({ likesCount: sql`${clips.likesCount} + 1` }).where(eq(clips.id, clipId));
+    return true;
+  }
+
+  async unlikeClip(userId: string, clipId: string): Promise<boolean> {
+    const result = await db.delete(clipLikes)
+      .where(and(eq(clipLikes.userId, userId), eq(clipLikes.clipId, clipId)));
+    if (result.rowCount && result.rowCount > 0) {
+      await db.update(clips).set({ likesCount: sql`GREATEST(${clips.likesCount} - 1, 0)` }).where(eq(clips.id, clipId));
+      return true;
+    }
+    return false;
+  }
+
+  async getClipLikes(userId: string, clipIds: string[]): Promise<string[]> {
+    if (clipIds.length === 0) return [];
+    const likes = await db.select({ clipId: clipLikes.clipId }).from(clipLikes)
+      .where(and(eq(clipLikes.userId, userId), sql`${clipLikes.clipId} = ANY(${clipIds})`));
+    return likes.map(l => l.clipId);
+  }
+  async createPwaInstallation(install: InsertPwaInstallation): Promise<PwaInstallation> {
+    const [result] = await db.insert(pwaInstallations).values(install).returning();
+    return result;
+  }
+
+  async getPwaInstallations(limit: number = 50, offset: number = 0): Promise<PwaInstallation[]> {
+    return db.select().from(pwaInstallations).orderBy(desc(pwaInstallations.installedAt)).limit(limit).offset(offset);
+  }
+
+  async getPwaInstallationCount(): Promise<number> {
+    const [result] = await db.select({ count: count() }).from(pwaInstallations);
+    return result?.count ?? 0;
+  }
+
+  async getUserPwaInstallation(userId: string): Promise<PwaInstallation | undefined> {
+    const [result] = await db.select().from(pwaInstallations).where(eq(pwaInstallations.userId, userId));
+    return result;
+  }
+
+  async getSavedItems(userId: string): Promise<SavedItem[]> {
+    return db.select().from(savedItems).where(eq(savedItems.userId, userId)).orderBy(desc(savedItems.savedAt));
+  }
+
+  async saveItem(item: InsertSavedItem): Promise<SavedItem> {
+    const existing = await db.select().from(savedItems)
+      .where(and(eq(savedItems.userId, item.userId), eq(savedItems.contentType, item.contentType), eq(savedItems.contentId, item.contentId)));
+    if (existing.length > 0) return existing[0];
+
+    const userSaved = await db.select({ cnt: count() }).from(savedItems).where(eq(savedItems.userId, item.userId));
+    if (userSaved[0]?.cnt >= 100) {
+      const oldest = await db.select().from(savedItems).where(eq(savedItems.userId, item.userId)).orderBy(savedItems.savedAt).limit(1);
+      if (oldest.length > 0) {
+        await db.delete(savedItems).where(eq(savedItems.id, oldest[0].id));
+      }
+    }
+
+    const [result] = await db.insert(savedItems).values(item).returning();
+    return result;
+  }
+
+  async unsaveItem(userId: string, contentType: string, contentId: string): Promise<boolean> {
+    const result = await db.delete(savedItems)
+      .where(and(eq(savedItems.userId, userId), eq(savedItems.contentType, contentType), eq(savedItems.contentId, contentId)));
+    return (result?.rowCount ?? 0) > 0;
+  }
+
+  async isSaved(userId: string, contentType: string, contentId: string): Promise<boolean> {
+    const result = await db.select().from(savedItems)
+      .where(and(eq(savedItems.userId, userId), eq(savedItems.contentType, contentType), eq(savedItems.contentId, contentId)));
+    return result.length > 0;
+  }
+
+  async getFeatures(status?: string): Promise<Feature[]> {
+    if (status) {
+      return db.select().from(features).where(eq(features.status, status)).orderBy(desc(features.createdAt));
+    }
+    return db.select().from(features).orderBy(desc(features.createdAt));
+  }
+
+  async getFeatureById(id: string): Promise<Feature | undefined> {
+    const [feature] = await db.select().from(features).where(eq(features.id, id));
+    return feature;
+  }
+
+  async createFeature(feature: InsertFeature): Promise<Feature> {
+    const [created] = await db.insert(features).values(feature).returning();
+    return created;
+  }
+
+  async updateFeature(id: string, updates: Partial<InsertFeature>): Promise<Feature | undefined> {
+    const [updated] = await db.update(features).set(updates).where(eq(features.id, id)).returning();
+    return updated;
+  }
+
+  async deleteFeature(id: string): Promise<boolean> {
+    const result = await db.delete(features).where(eq(features.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  async getUserVote(userId: string, featureId: string): Promise<FeatureVote | undefined> {
+    const [vote] = await db.select().from(featureVotes)
+      .where(and(eq(featureVotes.userId, userId), eq(featureVotes.featureId, featureId)));
+    return vote;
+  }
+
+  async castVote(userId: string, featureId: string, voteType: "upvote" | "downvote"): Promise<void> {
+    const existing = await this.getUserVote(userId, featureId);
+    if (existing) {
+      if (existing.voteType === voteType) return; // no change
+      // Switch vote: decrement old, increment new
+      if (existing.voteType === "upvote") {
+        await db.update(features).set({ upvotes: sql`${features.upvotes} - 1`, downvotes: sql`${features.downvotes} + 1` }).where(eq(features.id, featureId));
+      } else {
+        await db.update(features).set({ downvotes: sql`${features.downvotes} - 1`, upvotes: sql`${features.upvotes} + 1` }).where(eq(features.id, featureId));
+      }
+      await db.update(featureVotes).set({ voteType }).where(and(eq(featureVotes.userId, userId), eq(featureVotes.featureId, featureId)));
+    } else {
+      await db.insert(featureVotes).values({ userId, featureId, voteType });
+      if (voteType === "upvote") {
+        await db.update(features).set({ upvotes: sql`${features.upvotes} + 1` }).where(eq(features.id, featureId));
+      } else {
+        await db.update(features).set({ downvotes: sql`${features.downvotes} + 1` }).where(eq(features.id, featureId));
+      }
+    }
+  }
+
+  async removeVote(userId: string, featureId: string): Promise<void> {
+    const existing = await this.getUserVote(userId, featureId);
+    if (!existing) return;
+    await db.delete(featureVotes).where(and(eq(featureVotes.userId, userId), eq(featureVotes.featureId, featureId)));
+    if (existing.voteType === "upvote") {
+      await db.update(features).set({ upvotes: sql`${features.upvotes} - 1` }).where(eq(features.id, featureId));
+    } else {
+      await db.update(features).set({ downvotes: sql`${features.downvotes} - 1` }).where(eq(features.id, featureId));
+    }
+  }
+
+  async deleteUserAccount(userId: string): Promise<{ deletedFiles: string[] }> {
+    const filePaths: string[] = [];
+
+    const userLibItems = await db.select().from(libraryItems).where(eq(libraryItems.userId, userId));
+    for (const item of userLibItems) {
+      if (item.objectPath) filePaths.push(item.objectPath);
+    }
+
+    const userTracks = await db.select().from(socialTracks).where(eq(socialTracks.uploadedBy, userId));
+    for (const track of userTracks) {
+      if (track.audioUrl) filePaths.push(track.audioUrl);
+      if (track.artworkUrl) filePaths.push(track.artworkUrl);
+    }
+
+    const userPosts = await db.select().from(socialPosts).where(eq(socialPosts.authorId, userId));
+    for (const post of userPosts) {
+      if (post.imageUrl) filePaths.push(post.imageUrl);
+      if (post.audioUrl) filePaths.push(post.audioUrl);
+      if (post.videoUrl) filePaths.push(post.videoUrl);
+    }
+
+    const userClips = await db.select().from(clips).where(eq(clips.authorId, userId));
+    for (const clip of userClips) {
+      if (clip.videoUrl) filePaths.push(clip.videoUrl);
+      if (clip.thumbnailUrl) filePaths.push(clip.thumbnailUrl);
+    }
+
+    await db.delete(playbackProgress).where(eq(playbackProgress.userId, userId));
+    await db.delete(libraryItems).where(eq(libraryItems.userId, userId));
+    await db.delete(userStorage).where(eq(userStorage.userId, userId));
+    await db.delete(songReactions).where(eq(songReactions.userId, userId));
+    await db.delete(songFavorites).where(eq(songFavorites.userId, userId));
+    await db.delete(socialTrackSaves).where(eq(socialTrackSaves.userId, userId));
+    await db.delete(socialPostLikes).where(eq(socialPostLikes.userId, userId));
+    await db.delete(socialPostComments).where(eq(socialPostComments.authorId, userId));
+    await db.delete(clipLikes).where(eq(clipLikes.userId, userId));
+    await db.delete(clips).where(eq(clips.authorId, userId));
+    await db.delete(socialPosts).where(eq(socialPosts.authorId, userId));
+    await db.delete(socialTracks).where(eq(socialTracks.uploadedBy, userId));
+    await db.delete(entitlements).where(eq(entitlements.userId, userId));
+    await db.delete(orders).where(eq(orders.userId, userId));
+    await db.delete(invites).where(eq(invites.invitedBy, userId));
+    await db.delete(savedItems).where(eq(savedItems.userId, userId));
+    await db.delete(pwaInstallations).where(eq(pwaInstallations.userId, userId));
+    await db.delete(adminUsers).where(eq(adminUsers.userId, userId));
+    await db.delete(users).where(eq(users.id, userId));
+
+    return { deletedFiles: filePaths };
+  }
+}
+
+export const storage = new DatabaseStorage();
