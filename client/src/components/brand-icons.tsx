@@ -1,15 +1,20 @@
 import type { SVGProps } from "react";
 
-type IconProps = SVGProps<SVGSVGElement> & { className?: string };
+type IconProps = Omit<SVGProps<SVGSVGElement>, "width" | "height"> & {
+  className?: string;
+  size?: number | string;
+};
 
 /**
  * Buzz mark — three arms radiating 120° apart from a centered hub
  * (broadcast / peace-symbol style). Top arm carries a small filled disc.
  */
-export function BuzzIcon({ className, strokeWidth = 1.75, ...rest }: IconProps) {
+export function BuzzIcon({ className, strokeWidth = 1.75, size = 24, ...rest }: IconProps) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
+      width={size}
+      height={size}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -20,19 +25,11 @@ export function BuzzIcon({ className, strokeWidth = 1.75, ...rest }: IconProps) 
       aria-hidden="true"
       {...rest}
     >
-      {/* Outer ring */}
       <circle cx="12" cy="12" r="10" />
-      {/* Three arms from center, 120° apart */}
-      {/* Top arm: from (12,12) up to (12, 4.5) */}
-      <path d="M12 12 L12 4.5" />
-      {/* Bottom-right arm: 120° clockwise from top */}
-      <path d="M12 12 L18.5 15.75" />
-      {/* Bottom-left arm: 240° clockwise from top */}
-      <path d="M12 12 L5.5 15.75" />
-      {/* Centered hub */}
-      <circle cx="12" cy="12" r="0.9" fill="currentColor" stroke="none" />
-      {/* Top disc on the antenna */}
-      <circle cx="12" cy="3.75" r="1.15" fill="currentColor" stroke="none" />
+      <path d="M12 12 L12 7.75" />
+      <path d="M12 12 L15.7 14.13" />
+      <path d="M12 12 L8.3 14.13" />
+      <circle cx="12" cy="6.6" r="0.9" fill="currentColor" stroke="none" />
     </svg>
   );
 }
@@ -40,10 +37,12 @@ export function BuzzIcon({ className, strokeWidth = 1.75, ...rest }: IconProps) 
 /**
  * Drops mark — three stacked horizontal bars inside a ring (vinyl-stack style).
  */
-export function DropsIcon({ className, strokeWidth = 1.75, ...rest }: IconProps) {
+export function DropsIcon({ className, strokeWidth = 1.75, size = 24, ...rest }: IconProps) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
+      width={size}
+      height={size}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
