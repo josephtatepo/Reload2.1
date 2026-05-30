@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupSocialAuth, registerSocialAuthRoutes, isAuthenticated } from "./auth/socialAuth";
+import { registerAuthRoutes } from "./replit_integrations/auth";
 import { registerObjectStorageRoutes, objectStorageClient } from "./replit_integrations/object_storage";
 import { stripeService } from "./stripeService";
 import { getStripePublishableKey, getUncachableStripeClient } from "./stripeClient";
@@ -20,6 +21,7 @@ export async function registerRoutes(
 ): Promise<Server> {
   await setupSocialAuth(app);
   registerSocialAuthRoutes(app);
+  registerAuthRoutes(app);
   registerObjectStorageRoutes(app);
   const { insertSongSchema, insertSongReactionSchema, insertSongFavoriteSchema } = await import("@shared/schema");
 

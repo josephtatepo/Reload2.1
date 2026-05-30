@@ -18,26 +18,11 @@ import Blueprint from "@/pages/blueprint";
 import FeaturesPage from "@/pages/features";
 import Archive from "@/pages/archive";
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
-import { useAuth } from "@/hooks/use-auth";
-import { Loader2 } from "lucide-react";
-
-function HomeGate() {
-  const { user, isLoading, isAuthenticated } = useAuth();
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#050505] text-white/60">
-        <Loader2 className="w-6 h-6 animate-spin" />
-      </div>
-    );
-  }
-  if (!isAuthenticated || !user) return <Redirect to="/welcome" />;
-  return <AppShell />;
-}
 
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={HomeGate} />
+      <Route path="/" component={AppShell} />
       <Route path="/welcome">{() => <Welcome />}</Route>
       <Route path="/explore">{() => <Redirect to="/" />}</Route>
       <Route path="/movies">{() => <Redirect to="/" />}</Route>

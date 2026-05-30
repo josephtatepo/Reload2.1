@@ -78,6 +78,7 @@ const translations: Record<string, Record<Lang, string>> = {
   "live.title": { en: "Live", fr: "En direct" },
 
   "common.sign_in": { en: "Sign in", fr: "Se connecter" },
+  "common.sign_out": { en: "Sign out", fr: "Se déconnecter" },
   "common.profile": { en: "Profile", fr: "Profil" },
   "common.admin": { en: "Admin", fr: "Admin" },
   "common.settings": { en: "Settings", fr: "Paramètres" },

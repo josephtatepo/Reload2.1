@@ -749,6 +749,16 @@
 .ripple-ring.delay-1 { animation-delay: 1.8s; }
 .ripple-ring.delay-2 { animation-delay: 3.6s; }
 
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .lava-drift-a, .lava-drift-b, .lava-drift-c, .ripple-ring { animation: none !important; }
 }

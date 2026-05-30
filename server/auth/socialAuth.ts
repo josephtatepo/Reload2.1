@@ -28,6 +28,15 @@ declare global {
 
 const PgSession = connectPgSimple(session);
 
+function getAppOrigin() {
+  if (process.env.APP_ORIGIN) return process.env.APP_ORIGIN;
+  if (process.env.PUBLIC_URL) return process.env.PUBLIC_URL;
+  // REPLIT_DOMAINS is just a hostname (no protocol), add https://
+  const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
+  if (domain) return `https://${domain}`;
+  return "https://afrokaviar.com";
+}
+
 export async function setupSocialAuth(app: Express) {
   if (!process.env.SESSION_SECRET) {
     throw new Error("SESSION_SECRET environment variable is required");
@@ -48,7 +57,7 @@ export async function setupSocialAuth(app: Express) {
       cookie: {
         httpOnly: true,
         secure: true,
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        maxAge: 7 * 24 * 60 * 60 * 1000,
         sameSite: "lax",
       },
     })
@@ -70,14 +79,15 @@ export async function setupSocialAuth(app: Express) {
     }
   });
 
-  // Google OAuth Strategy
+  const callbackBaseUrl = "https://afrokaviar.com";
+
   if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     passport.use(
       new GoogleStrategy(
         {
           clientID: process.env.GOOGLE_CLIENT_ID,
           clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-          callbackURL: "/api/auth/google/callback",
+          callbackURL: `${callbackBaseUrl}/api/auth/google/callback`,
           proxy: true,
         },
         async (accessToken, refreshToken, profile, done) => {
@@ -105,14 +115,13 @@ export async function setupSocialAuth(app: Express) {
     );
   }
 
-  // Twitter/X OAuth Strategy
   if (process.env.TWITTER_CONSUMER_KEY && process.env.TWITTER_CONSUMER_SECRET) {
     passport.use(
       new TwitterStrategy(
         {
           consumerKey: process.env.TWITTER_CONSUMER_KEY,
           consumerSecret: process.env.TWITTER_CONSUMER_SECRET,
-          callbackURL: "/api/auth/twitter/callback",
+          callbackURL: `${callbackBaseUrl}/api/auth/twitter/callback`,
           includeEmail: true,
         },
         async (token, tokenSecret, profile, done) => {
@@ -141,7 +150,6 @@ export async function setupSocialAuth(app: Express) {
     );
   }
 
-  // Apple OAuth Strategy
   if (process.env.APPLE_CLIENT_ID && process.env.APPLE_TEAM_ID && process.env.APPLE_KEY_ID && process.env.APPLE_PRIVATE_KEY) {
     passport.use(
       new AppleStrategy(
@@ -150,7 +158,7 @@ export async function setupSocialAuth(app: Express) {
           teamID: process.env.APPLE_TEAM_ID,
           keyID: process.env.APPLE_KEY_ID,
           privateKeyString: process.env.APPLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
-          callbackURL: "/api/auth/apple/callback",
+          callbackURL: `${callbackBaseUrl}/api/auth/apple/callback`,
           scope: ["name", "email"],
         },
         async (accessToken: string, refreshToken: string, idToken: any, profile: any, done: any) => {
@@ -179,7 +187,6 @@ export async function setupSocialAuth(app: Express) {
 }
 
 export function registerSocialAuthRoutes(app: Express) {
-  // Google OAuth routes
   app.get("/api/auth/google", passport.authenticate("google", { scope: ["profile", "email"] }));
   
   app.get(
@@ -190,7 +197,6 @@ export function registerSocialAuthRoutes(app: Express) {
     }
   );
 
-  // Twitter/X OAuth routes
   app.get("/api/auth/twitter", passport.authenticate("twitter"));
   
   app.get(
@@ -201,7 +207,6 @@ export function registerSocialAuthRoutes(app: Express) {
     }
   );
 
-  // Apple OAuth routes
   app.get("/api/auth/apple", passport.authenticate("apple"));
   
   app.post(
@@ -212,39 +217,16 @@ export function registerSocialAuthRoutes(app: Express) {
     }
   );
 
-  // Logout route
   app.get("/api/logout", (req, res) => {
     req.logout(() => {
       res.redirect("/");
     });
   });
-
-  app.get("/api/auth/user", async (req, res) => {
-    if (!req.isAuthenticated() || !req.user) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-    try {
-      const userId = req.user.id;
-      const admin = userId ? await storage.getAdminUser(userId) : null;
-      res.json({ ...req.user, adminRole: admin?.role || null });
-    } catch {
-      res.json({ ...req.user, adminRole: null });
-    }
-  });
-
-  // Check which OAuth providers are configured
-  app.get("/api/auth/providers", (req, res) => {
-    res.json({
-      google: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
-      twitter: !!(process.env.TWITTER_CONSUMER_KEY && process.env.TWITTER_CONSUMER_SECRET),
-      apple: !!(process.env.APPLE_CLIENT_ID && process.env.APPLE_TEAM_ID && process.env.APPLE_KEY_ID && process.env.APPLE_PRIVATE_KEY),
-    });
-  });
 }
 
-export const isAuthenticated: RequestHandler = (req, res, next) => {
-  if (req.isAuthenticated() && req.user) {
+export function isAuthenticated(req: any, res: any, next: any) {
+  if (req.isAuthenticated && req.isAuthenticated()) {
     return next();
   }
   res.status(401).json({ message: "Unauthorized" });
-};
+}

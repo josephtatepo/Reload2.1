@@ -498,7 +498,10 @@ const NAV_ITEMS = SIDE_NAV_ITEMS;
 export default function ExplorePage() {
   const [tab, setTab] = useState("social");
   const [dropFilter, setDropFilter] = useState<"public" | "private" | "saved" | "drafts">("public");
-  const [isPostPrivate, setIsPostPrivate] = useState(false);
+  const [isPostPrivate, setIsPostPrivate] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("draft-post-private") === "true";
+  });
   const [query, setQuery] = useState("");
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -572,7 +575,7 @@ export default function ExplorePage() {
 
   // Radio embed
   const [radioEmbedCode, setRadioEmbedCode] = useState<string>(
-    "<iframe src=\"https://s93.radiolize.com/public/appsumo__g2ceqo_lcw1ry/embed?theme=dark\" frameborder=\"0\" allowtransparency=\"true\" style=\"width: 100%; min-height: 120px; border: 0;\"></iframe>",
+    "<iframe src=\"https://s93.radiolize.com/public/appsumo__g2ceqo_lcw1ry/embed?theme=dark\" frameborder=\"0\" allowtransparency=\"true\" style=\"width: 100%; height: 120px; border: 0; display: block;\"></iframe>",
   );
 
   // Music - Real API data
@@ -939,13 +942,22 @@ export default function ExplorePage() {
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
   const [dragItemId, setDragItemId] = useState<string | null>(null);
   const folderImportRef = useRef<HTMLInputElement>(null);
-  const [postText, setPostText] = useState("");
+  const [postText, setPostText] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return localStorage.getItem("draft-post-text") || "";
+  });
   const [postImageFile, setPostImageFile] = useState<File | null>(null);
   const [postImagePreview, setPostImagePreview] = useState<string | null>(null);
   const [postAudioFile, setPostAudioFile] = useState<File | null>(null);
   const [postVideoFile, setPostVideoFile] = useState<File | null>(null);
-  const [postLinkUrl, setPostLinkUrl] = useState("");
+  const [postLinkUrl, setPostLinkUrl] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return localStorage.getItem("draft-post-link") || "";
+  });
   const [isPostSubmitting, setIsPostSubmitting] = useState(false);
+  useEffect(() => { try { localStorage.setItem("draft-post-text", postText); } catch {} }, [postText]);
+  useEffect(() => { try { localStorage.setItem("draft-post-link", postLinkUrl); } catch {} }, [postLinkUrl]);
+  useEffect(() => { try { localStorage.setItem("draft-post-private", String(isPostPrivate)); } catch {} }, [isPostPrivate]);
   const [postLikes, setPostLikes] = useState<Record<string, boolean>>({});
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [expandedComments, setExpandedComments] = useState<Record<string, boolean>>({});
@@ -1443,20 +1455,175 @@ export default function ExplorePage() {
   }
 
   return (
-    <div className="flex h-screen bg-background text-foreground overflow-hidden">
-      <aside className="w-64 border-r border-zinc-800/50 hidden md:flex flex-col flex-shrink-0 bg-[#0a0a0b]">
-        <div className="p-6 pb-4">
+    <div className="flex flex-col h-screen bg-black text-foreground overflow-hidden">
+      <header className="relative flex items-center px-6 py-3 bg-[#0a0a0b]/80 backdrop-blur-md shrink-0 z-30">
+        {/* Left: logo — w-64 matches sidebar so center group aligns with content column */}
+        <div className="hidden md:flex items-center w-64 shrink-0">
           {user ? (
-            <span className="cursor-default block" data-testid="img-explore-logo">
+            <span className="cursor-default block">
               <Wordmark size="md" />
             </span>
           ) : (
-            <Link href="/welcome" data-testid="link-explore-home">
+            <Link href="/welcome">
               <Wordmark size="md" />
             </Link>
           )}
         </div>
+        <div className="md:hidden shrink-0">
+          <span data-testid="img-explore-logo-mobile" className="block">
+            <img src="/logo-dark.png" alt="Reload" className="h-[17px] w-auto max-w-none dark:block hidden" />
+            <img src="/logo-light.png" alt="Reload" className="h-[17px] w-auto max-w-none dark:hidden block" />
+          </span>
+        </div>
 
+        {/* Center: DROPS + BUZZ + search — absolutely centered in the full viewport */}
+        <div className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center gap-4">
+          <button
+            onClick={() => setTab('social')}
+            data-testid="top-nav-social"
+            className={`flex items-center gap-1.5 text-base font-bold transition-colors ${tab === 'social' ? 'text-accent' : 'text-zinc-500 hover:text-white'}`}
+          >
+            <DropsIcon size={18} />
+            Drops
+          </button>
+          <button
+            onClick={() => setTab('buzz')}
+            data-testid="top-nav-buzz"
+            className={`flex items-center gap-1.5 text-base font-bold transition-colors ${tab === 'buzz' ? 'text-accent' : 'text-zinc-500 hover:text-white'}`}
+          >
+            <BuzzIcon size={18} />
+            Buzz
+          </button>
+          <div className="relative w-[260px] ml-[50px]">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/45" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t("search.placeholder")}
+              className="h-10 w-full pl-9 bg-zinc-900/50 border-zinc-800/80 text-white placeholder:text-white/35 rounded-full"
+              data-testid="input-global-search"
+            />
+          </div>
+        </div>
+
+        {/* Right: controls */}
+        <div className="flex items-center gap-1.5 md:gap-3 ml-auto">
+          <button
+            onClick={() => setMobileSearchOpen(true)}
+            className="md:hidden h-9 w-9 rounded-full flex items-center justify-center bg-white/10 text-white/70 hover:bg-white/20 hover:text-white border border-white/10 transition-all"
+            data-testid="button-mobile-search"
+          >
+            <Search size={15} />
+          </button>
+          {isAuthenticated && (
+            <button
+              onClick={() => setShowBookmarks(!showBookmarks)}
+              className={`h-9 w-9 rounded-full flex items-center justify-center text-sm transition-all border ${showBookmarks ? 'bg-[hsl(var(--primary))]/20 text-[hsl(var(--primary))] border-[hsl(var(--primary))]/30' : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white border-white/10'}`}
+              data-testid="button-bookmarks-toggle"
+            >
+              <Bookmark className="w-4 h-4" />
+            </button>
+          )}
+          <button
+            onClick={toggleLang}
+            className="h-9 px-3 rounded-full text-xs font-bold bg-white/10 text-white/70 hover:bg-white/20 hover:text-white border border-white/10 transition-all"
+            data-testid="button-lang-toggle"
+          >
+            {lang === "en" ? "FR" : "EN"}
+          </button>
+          {user ? (
+            <div className="flex items-center gap-2">
+              <Link href="/profile" data-testid="link-profile">
+                {user.profileImageUrl ? (
+                  <img
+                    src={user.profileImageUrl}
+                    alt=""
+                    className="w-8 h-8 rounded-full border border-white/10 hover:border-white/30 transition-all cursor-pointer"
+                    data-testid="button-profile"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-white/10 border border-white/10 flex items-center justify-center hover:bg-white/20 transition-all cursor-pointer" data-testid="button-profile">
+                    <User className="w-4 h-4 text-white/60" />
+                  </div>
+                )}
+              </Link>
+            </div>
+          ) : (
+            <Link href="/auth" data-testid="link-signin">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-9 px-4 border-white/15 text-white/70 hover:text-white hover:border-white/30 bg-transparent text-xs font-medium"
+                data-testid="button-signin"
+              >
+                {t("common.sign_in")}
+              </Button>
+            </Link>
+          )}
+          {isAdmin && (
+            <Link href="/admin" data-testid="link-admin">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-9 px-3 text-primary/70 bg-primary/10 hover:text-white hover:bg-primary"
+                data-testid="button-admin"
+              >
+                <Shield className="mr-2 h-4 w-4" />
+                <span className="hidden sm:inline">{t("common.admin")}</span>
+              </Button>
+            </Link>
+          )}
+        </div>
+      </header>
+
+      {/* Sub-tab row — full-width so absolute left-1/2 matches the header's centering exactly */}
+      {tab === 'social' && (
+        <div className="relative bg-black shrink-0 z-20 flex items-center h-[52px] px-6" data-testid="top-nav-feeds">
+          <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5">
+            <button
+              onClick={() => setSocialView("posts")}
+              className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${socialView === "posts" ? "bg-accent text-black" : "bg-zinc-800/60 text-zinc-200 hover:text-white hover:bg-zinc-700/60"}`}
+              data-testid="button-social-posts"
+            >
+              {t("social.posts")}
+            </button>
+            <button
+              onClick={() => setSocialView("tracks")}
+              className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${socialView === "tracks" ? "bg-accent text-black" : "bg-zinc-800/60 text-zinc-200 hover:text-white hover:bg-zinc-700/60"}`}
+              data-testid="button-social-tracks"
+            >
+              {t("social.tracks")}
+            </button>
+            <button
+              onClick={() => setSocialView("clips")}
+              className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${socialView === "clips" ? "bg-accent text-black" : "bg-zinc-800/60 text-zinc-200 hover:text-white hover:bg-zinc-700/60"}`}
+              data-testid="button-social-clips"
+            >
+              {t("social.clips")}
+            </button>
+            {socialView !== "posts" && (
+              <button
+                className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-accent border border-white/10 px-5 py-2 rounded-full font-bold text-sm transition-all active:scale-95 shrink-0 ml-[50px]"
+                data-testid="button-social-action"
+                onClick={() => {
+                  if (!isAuthenticated) { window.location.href = "/auth"; return; }
+                  if (socialView === "tracks") {
+                    setUploadTitle(""); setSubmitForSale(false); setUploadFile(null); setShowSocialUploadDialog(true);
+                  } else if (socialView === "clips") {
+                    resetClipDialog(); setShowClipUploadDialog(true);
+                  }
+                }}
+              >
+                {socialView === "tracks" && <><Upload className="w-4 h-4" /><span>{t("social.upload_track")}</span></>}
+                {socialView === "clips" && <><Video className="w-4 h-4" /><span>Add Clip</span></>}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-1 overflow-hidden">
+      <aside className="w-64 hidden md:flex flex-col flex-shrink-0 bg-black">
         <nav className="flex-1 px-3 space-y-1 mt-4" data-testid="tabs-main">
           {SIDE_NAV_ITEMS.map((item) => {
             const isActive = tab === item.id;
@@ -1494,7 +1661,10 @@ export default function ExplorePage() {
           })}
         </nav>
 
-        <div className="p-4 border-t border-zinc-800/50 space-y-1">
+        <div className="px-4 pt-4 pb-3 space-y-1">
+          <div className="flex justify-center mb-3">
+            <div className="w-10 h-px bg-zinc-700/40" />
+          </div>
           <a
             href="https://buy.stripe.com/00g00g8lqfbhfeo28a"
             target="_blank"
@@ -1634,153 +1804,6 @@ export default function ExplorePage() {
       </div>
 
       <main className="flex-1 flex flex-col overflow-hidden">
-        <header className="flex items-center justify-between px-6 py-4 border-b border-zinc-800/30 bg-[#0a0a0b]/80 backdrop-blur-md shrink-0">
-          <div className="md:hidden shrink-0">
-            <span data-testid="img-explore-logo-mobile" className="block">
-              <img src="/logo-dark.png" alt="Reload" className="h-[17px] w-auto max-w-none dark:block hidden" />
-              <img src="/logo-light.png" alt="Reload" className="h-[17px] w-auto max-w-none dark:hidden block" />
-            </span>
-          </div>
-          <div className="relative flex-1 max-w-xl mx-auto hidden md:block">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/45" />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t("search.placeholder")}
-              className="h-10 w-full pl-9 bg-zinc-900/50 border-zinc-800/80 text-white placeholder:text-white/35 rounded-full"
-              data-testid="input-global-search"
-            />
-          </div>
-          <div className="flex items-center gap-1.5 md:gap-3 ml-4">
-            <button
-              onClick={() => setMobileSearchOpen(true)}
-              className="md:hidden h-9 w-9 rounded-full flex items-center justify-center bg-white/10 text-white/70 hover:bg-white/20 hover:text-white border border-white/10 transition-all"
-              data-testid="button-mobile-search"
-            >
-              <Search size={15} />
-            </button>
-            <button
-              onClick={toggleMode}
-              className="hidden sm:flex h-9 px-3 items-center gap-1.5 rounded-full bg-white/10 text-white/80 hover:bg-white/20 hover:text-white border border-white/10 transition-all"
-              data-testid="button-mode-toggle"
-              title={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-            >
-              {mode === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
-              <span className="text-[10px] font-bold uppercase tracking-widest">
-                {mode === 'dark' ? 'Light' : 'Dark'}
-              </span>
-            </button>
-            <button
-              onClick={toggleMode}
-              className="sm:hidden h-9 w-9 rounded-full flex items-center justify-center bg-white/10 text-white/80 hover:bg-white/20 hover:text-white border border-white/10 transition-all"
-              data-testid="button-mode-toggle-mobile"
-              aria-label={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-            >
-              {mode === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
-            </button>
-            <div className="relative" ref={themePanelRef}>
-              <button
-                onClick={() => setShowThemePanel(!showThemePanel)}
-                className="h-9 w-9 rounded-full flex items-center justify-center bg-white/10 text-white/70 hover:bg-white/20 hover:text-white border border-white/10 transition-all"
-                data-testid="button-theme-toggle"
-              >
-                <Palette size={15} />
-              </button>
-              {showThemePanel && (
-                <div className="absolute right-0 top-12 z-50 w-48 bg-zinc-900 border border-zinc-700/60 rounded-xl shadow-2xl p-3 space-y-3">
-                  <div className="space-y-1.5">
-                    {(["cyan-gold", "ember-warm", "sage-earth"] as ColorTheme[]).map((theme) => (
-                      <button
-                        key={theme}
-                        onClick={() => { setColorTheme(theme); setShowThemePanel(false); }}
-                        className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-bold transition-all ${
-                          colorTheme === theme ? "bg-white/15 text-white" : "text-zinc-400 hover:text-white hover:bg-white/5"
-                        }`}
-                        data-testid={`button-header-theme-${theme}`}
-                      >
-                        <div className="flex items-center gap-1">
-                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: THEME_PREVIEW[theme].primary }} />
-                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: THEME_PREVIEW[theme].accent }} />
-                        </div>
-                        <span>{theme.split("-").map(w => w[0].toUpperCase() + w.slice(1)).join(" & ")}</span>
-                      </button>
-                    ))}
-                  </div>
-                  <div className="border-t border-zinc-700/40 pt-2">
-                    <button
-                      onClick={() => { toggleMode(); setShowThemePanel(false); }}
-                      className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-bold text-zinc-400 hover:text-white hover:bg-white/5 transition-all"
-                      data-testid="button-header-mode-toggle"
-                    >
-                      {mode === "dark" ? <Sun size={14} /> : <Moon size={14} />}
-                      <span>{mode === "dark" ? "Light Mode" : "Dark Mode"}</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-            {isAuthenticated && (
-              <button
-                onClick={() => setShowBookmarks(!showBookmarks)}
-                className={`h-9 w-9 rounded-full flex items-center justify-center text-sm transition-all border ${showBookmarks ? 'bg-[hsl(var(--primary))]/20 text-[hsl(var(--primary))] border-[hsl(var(--primary))]/30' : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white border-white/10'}`}
-                data-testid="button-bookmarks-toggle"
-              >
-                <Bookmark className="w-4 h-4" />
-              </button>
-            )}
-            <button
-              onClick={toggleLang}
-              className="h-9 px-3 rounded-full text-xs font-bold bg-white/10 text-white/70 hover:bg-white/20 hover:text-white border border-white/10 transition-all"
-              data-testid="button-lang-toggle"
-            >
-              {lang === "en" ? "FR" : "EN"}
-            </button>
-            {user ? (
-              <Link href="/profile" data-testid="link-profile">
-                <Button
-                  size="sm"
-                  className="h-9 px-4 bg-white/10 text-white hover:bg-white/20 border border-white/10"
-                  data-testid="button-profile"
-                >
-                  {user.profileImageUrl ? (
-                    <img 
-                      src={user.profileImageUrl} 
-                      alt="" 
-                      className="w-5 h-5 rounded-full mr-2"
-                    />
-                  ) : (
-                    <User className="mr-2 h-4 w-4" />
-                  )}
-                  <span className="hidden sm:inline">{t("common.profile")}</span>
-                </Button>
-              </Link>
-            ) : (
-              <Link href="/auth" data-testid="link-signin">
-                <Button
-                  size="sm"
-                  className="h-9 px-5 bg-cyan-500 text-black font-bold hover:bg-cyan-400"
-                  data-testid="button-signin"
-                >
-                  {t("common.sign_in")}
-                </Button>
-              </Link>
-            )}
-            {isAdmin && (
-              <Link href="/admin" data-testid="link-admin">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-9 px-3 text-primary/70 bg-primary/10 hover:text-white hover:bg-primary"
-                  data-testid="button-admin"
-                >
-                  <Shield className="mr-2 h-4 w-4" />
-                  <span className="hidden sm:inline">{t("common.admin")}</span>
-                </Button>
-              </Link>
-            )}
-          </div>
-        </header>
-
         {/* Mobile Search Overlay */}
         {mobileSearchOpen && (
           <div className="fixed inset-0 z-50 md:hidden" data-testid="overlay-mobile-search">
@@ -1812,7 +1835,7 @@ export default function ExplorePage() {
                 </div>
 
                 {query.trim().length > 0 && (
-                  <div className="bg-zinc-900/90 border border-zinc-700/50 rounded-2xl p-3 max-h-[70vh] overflow-y-auto space-y-1">
+                  <div className="bg-zinc-900/90 border border-zinc-700/50 rounded-2xl p-3 max-h-[70vh] overflow-y-auto hide-scrollbar space-y-1">
                     {(() => {
                       const q = query.trim().toLowerCase();
                       const results: { type: string; icon: React.ReactNode; label: string; action: () => void }[] = [];
@@ -1937,7 +1960,7 @@ export default function ExplorePage() {
               ) : filteredSavedItems.length === 0 ? (
                 <p className="text-zinc-500 text-sm py-4 text-center" data-testid="text-bookmarks-no-results">{lang === "fr" ? "Aucun résultat" : "No results"}</p>
               ) : (
-                <div className="space-y-1.5 max-h-[40vh] overflow-y-auto scrollbar-custom" data-testid="list-bookmarks">
+                <div className="space-y-1.5 max-h-[40vh] overflow-y-auto hide-scrollbar" data-testid="list-bookmarks">
                   {filteredSavedItems.map((item) => (
                     <div key={item.id} className="flex items-center justify-between gap-3 px-3 py-2 rounded-xl hover:bg-white/5 transition-all group" data-testid={`row-bookmark-${item.id}`}>
                       <button
@@ -1982,31 +2005,10 @@ export default function ExplorePage() {
         )}
 
         <div
-          className="flex-1 overflow-y-auto pb-32 md:pb-6"
+          className="flex-1 overflow-y-auto pb-32 md:pb-6 hide-scrollbar"
           style={{ backgroundColor: "#000" }}
         >
-          <div className="mx-auto w-full max-w-6xl px-6 py-6">
-            {/* Top feed nav: DROPS / BUZZ */}
-            <div className="flex items-center justify-center gap-2 mb-6" data-testid="top-nav-feeds">
-              {TOP_NAV_ITEMS.map((item) => {
-                const isActive = tab === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => setTab(item.id)}
-                    data-testid={`top-nav-${item.id}`}
-                    className={`px-6 py-2 text-sm font-black uppercase tracking-[0.2em] rounded-full transition-all ${
-                      isActive
-                        ? 'bg-white text-black'
-                        : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 border border-white/5'
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                );
-              })}
-            </div>
-
+          <div className="mx-auto w-full max-w-6xl px-6 pb-6">
             <Tabs value={tab} onValueChange={setTab}>
               <TabsList className="hidden">
                 {[...SIDE_NAV_ITEMS, ...TOP_NAV_ITEMS].map((item) => (
@@ -2484,7 +2486,7 @@ export default function ExplorePage() {
                           </div>
                         ) : null}
 
-                        <div className="flex-1 overflow-y-auto scrollbar-custom" style={{ scrollbarColor: '#161820 transparent', scrollbarWidth: 'thin' }} data-testid="list-tv">
+                        <div className="flex-1 overflow-y-auto hide-scrollbar" data-testid="list-tv">
                         {tvLoading ? (
                           <div className="p-4 text-sm text-white/60" data-testid="status-tv-loading">
                             {t("radio.loading")}
@@ -2980,69 +2982,6 @@ export default function ExplorePage() {
 
                 <TabsContent value="social" className="mt-0">
                   <div className="w-full text-zinc-100" data-testid="panel-social">
-                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-6">
-                      <div className="space-y-1">
-                        <h1 className="text-4xl font-extrabold tracking-tighter text-white" data-testid="text-social-title">
-                          {t("social.title")}
-                        </h1>
-                        <p className="text-zinc-400 text-sm font-medium max-w-md leading-relaxed" data-testid="text-social-desc">
-                          {t("social.desc")}
-                        </p>
-                      </div>
-                      <button 
-                        className="flex items-center justify-center space-x-2 bg-white hover:bg-zinc-200 text-black px-6 py-2.5 rounded-full font-bold text-sm transition-all transform active:scale-95"
-                        data-testid="button-social-upload"
-                        onClick={() => {
-                          if (!isAuthenticated) {
-                            toast({ title: "Sign in required", description: "Please sign in to upload tracks.", variant: "destructive" });
-                            return;
-                          }
-                          setUploadTitle("");
-                          setSubmitForSale(false);
-                          setUploadFile(null);
-                          setShowSocialUploadDialog(true);
-                        }}
-                      >
-                        <Upload className="w-4 h-4" />
-                        <span>{t("social.upload_track")}</span>
-                      </button>
-                    </div>
-
-                    <div className="flex items-center gap-2 mb-6" data-testid="social-view-toggle">
-                      <button
-                        onClick={() => setSocialView("posts")}
-                        className={`px-5 py-2 rounded-full text-sm font-bold transition-all ${
-                          socialView === "posts"
-                            ? "bg-accent text-black"
-                            : "bg-zinc-800/60 text-zinc-200 hover:text-white hover:bg-zinc-700/60"
-                        }`}
-                        data-testid="button-social-posts"
-                      >
-                        {t("social.posts")}
-                      </button>
-                      <button
-                        onClick={() => setSocialView("tracks")}
-                        className={`px-5 py-2 rounded-full text-sm font-bold transition-all ${
-                          socialView === "tracks"
-                            ? "bg-accent text-black"
-                            : "bg-zinc-800/60 text-zinc-200 hover:text-white hover:bg-zinc-700/60"
-                        }`}
-                        data-testid="button-social-tracks"
-                      >
-                        {t("social.tracks")}
-                      </button>
-                      <button
-                        onClick={() => setSocialView("clips")}
-                        className={`px-5 py-2 rounded-full text-sm font-bold transition-all ${
-                          socialView === "clips"
-                            ? "bg-accent text-black"
-                            : "bg-zinc-800/60 text-zinc-200 hover:text-white hover:bg-zinc-700/60"
-                        }`}
-                        data-testid="button-social-clips"
-                      >
-                        {t("social.clips")}
-                      </button>
-                    </div>
 
                     {isAuthenticated && mySubmissions.length > 0 && (
                       <div className="mb-6 bg-[#121214] rounded-2xl border border-zinc-800/60 p-4">
@@ -3095,13 +3034,6 @@ export default function ExplorePage() {
 
                     {socialView === "posts" && (
                       <div className="max-w-3xl mx-auto space-y-8">
-                        <div className="flex items-center justify-between text-[11px] font-bold text-zinc-500 mb-4 uppercase tracking-widest">
-                          <span className="text-zinc-600">Total: {socialPostsData.length} posts</span>
-                          <div className="flex items-center space-x-2 text-zinc-600">
-                            <Clock className="w-3.5 h-3.5" />
-                            <span>Last Sync: Just now</span>
-                          </div>
-                        </div>
                         {isAuthenticated && (
                           <div className="bg-[#121214] border border-zinc-800/80 rounded-[2rem] p-6 shadow-2xl" data-testid="social-post-composer">
                             <p className="text-xs text-zinc-500 font-medium mb-3 uppercase tracking-widest">{t("social.posts")} · {t("social.audio")} · {t("social.image")} · {t("social.video")}</p>
@@ -3357,7 +3289,7 @@ export default function ExplorePage() {
                           const liked = !!postLikes[post.id];
                           const isSocialPlaying = socialPlayingId === post.id;
                           return (
-                            <article key={post.id} className="bg-[#121214] border border-zinc-800/60 rounded-[2.5rem] overflow-hidden shadow-2xl transition-all hover:border-zinc-700/50" data-testid={`card-social-post-${post.id}`} data-content-id={`post-${post.id}`}>
+                            <article key={post.id} className="bg-[#121214] border border-zinc-800/60 rounded-xl overflow-hidden shadow-2xl transition-all hover:border-zinc-700/50" data-testid={`card-social-post-${post.id}`} data-content-id={`post-${post.id}`}>
                               <div className="p-8">
                                 <div className="flex items-center justify-between mb-6">
                                   <div className="flex items-center space-x-4">
@@ -3687,7 +3619,7 @@ export default function ExplorePage() {
                                   ) : (postComments[post.id] || []).length === 0 ? (
                                     <div className="text-center py-4 text-zinc-500 text-sm">{t("social.no_comments") || "No comments yet. Be the first!"}</div>
                                   ) : (
-                                    <div className="space-y-3 max-h-64 overflow-y-auto scrollbar-custom">
+                                    <div className="space-y-3 max-h-64 overflow-y-auto hide-scrollbar">
                                       {(postComments[post.id] || []).map((comment) => (
                                         <div key={comment.id} className="flex items-start space-x-3 group" data-testid={`comment-${comment.id}`}>
                                           <div className="w-7 h-7 rounded-full bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-zinc-400 shrink-0 overflow-hidden">
@@ -3737,13 +3669,6 @@ export default function ExplorePage() {
 
                     {socialView === "tracks" && (
                       <div className="max-w-3xl mx-auto space-y-4">
-                        <div className="flex items-center justify-between text-[11px] font-bold text-zinc-500 mb-4 uppercase tracking-widest">
-                          <span className="text-zinc-600">Total: {filteredSocial.length} tracks</span>
-                          <div className="flex items-center space-x-2 text-zinc-600">
-                            <Clock className="w-3.5 h-3.5" />
-                            <span>Last Sync: Just now</span>
-                          </div>
-                        </div>
 
                         {filteredSocial.map((t) => {
                           const saved = !!socialSaved[t.id];
@@ -3840,26 +3765,6 @@ export default function ExplorePage() {
 
                     {socialView === "clips" && (
                       <div className="max-w-3xl mx-auto space-y-4">
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest">
-                            <span className="text-zinc-600">Total: {clipsData.length} {t("social.total_clips")}</span>
-                          </div>
-                          <button
-                            className="flex items-center gap-2 bg-white hover:bg-zinc-200 text-black px-4 py-2 rounded-full font-bold text-sm transition-all active:scale-95"
-                            onClick={() => {
-                              if (!isAuthenticated) {
-                                toast({ title: t("social.sign_in_required"), description: "Please sign in to upload clips.", variant: "destructive" });
-                                return;
-                              }
-                              resetClipDialog();
-                              setShowClipUploadDialog(true);
-                            }}
-                            data-testid="button-upload-clip"
-                          >
-                            <Video className="w-4 h-4" />
-                            <span>{t("social.upload_clip")}</span>
-                          </button>
-                        </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           {clipsData.map((clip) => (
@@ -4530,35 +4435,9 @@ export default function ExplorePage() {
       </main>
 
       {/* Right rail: drop filters + persistent radio/tv mini-player + user panel */}
-      <aside className="hidden lg:flex w-72 border-l border-zinc-800/50 flex-col flex-shrink-0 bg-[#0a0a0b] overflow-y-auto" data-testid="right-rail">
-        {user && (
-          <div className="p-5 border-b border-zinc-800/50">
-            <div className="flex items-center gap-3">
-              {user.profileImageUrl ? (
-                <img src={user.profileImageUrl} alt="" className="w-11 h-11 rounded-full" />
-              ) : (
-                <div className="w-11 h-11 rounded-full bg-zinc-800 flex items-center justify-center">
-                  <User className="w-5 h-5 text-zinc-500" />
-                </div>
-              )}
-              <div className="flex flex-col min-w-0 flex-1">
-                <span className="text-sm font-bold text-white truncate" data-testid="text-rail-username">{user.firstName || user.handle || 'User'}</span>
-                <span className="text-[11px] text-zinc-400 truncate" data-testid="text-rail-handle">
-                  @{user.handle || (user.email ? user.email.split('@')[0] : 'user')}
-                </span>
-                <span className="text-[9px] text-zinc-500 truncate uppercase tracking-wider mt-0.5">{isAdmin ? 'Admin' : 'Member'}</span>
-              </div>
-              <Link href="/profile">
-                <button className="h-8 w-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-zinc-400 hover:text-white transition-colors" data-testid="button-rail-profile">
-                  <Settings className="w-4 h-4" />
-                </button>
-              </Link>
-            </div>
-          </div>
-        )}
-
+      <aside className="hidden lg:flex w-72 flex-col flex-shrink-0 bg-black overflow-y-auto hide-scrollbar" data-testid="right-rail">
         {(tab === 'social' || tab === 'buzz') && (
-          <div className="p-5 border-b border-zinc-800/50">
+          <div className="p-5">
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-3">Drops Filter</p>
             <div className="space-y-1">
               {([
@@ -4606,11 +4485,14 @@ export default function ExplorePage() {
                 return button;
               })}
             </div>
+            <div className="mt-4 flex justify-center">
+              <div className="w-10 h-px bg-zinc-700/40" />
+            </div>
           </div>
         )}
 
         {/* Persistent Radio / TV mini-player with explicit tabs */}
-        <div className="p-5 border-b border-zinc-800/50">
+        <div className="p-5">
           <div className="flex items-center justify-between mb-3">
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">On Air</p>
             <button
@@ -4649,9 +4531,21 @@ export default function ExplorePage() {
             </button>
           </div>
           {railMode === 'radio' ? (
-            <div className="rounded-2xl border border-white/5 bg-[#121214] p-3" data-testid="rail-mini-player">
-              <div dangerouslySetInnerHTML={{ __html: radioEmbedCode }} />
-            </div>
+            <>
+              <div className="rounded-2xl border border-white/5 bg-[#121214] overflow-hidden relative" style={{ padding: '12px 12px 30px' }} data-testid="rail-mini-player">
+                <div dangerouslySetInnerHTML={{ __html: radioEmbedCode }} />
+                <p className="absolute bottom-0 left-0 right-0 h-[30px] flex items-center justify-center text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Listen to Afrokaviar Radio</p>
+              </div>
+              <div className="mt-2 flex justify-center">
+                <span
+                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[9px] font-bold uppercase tracking-[0.2em] text-zinc-500"
+                  data-testid="tag-radio-version"
+                >
+                  <span className="w-1 h-1 rounded-full bg-cyan-400" />
+                  v1.4.0
+                </span>
+              </div>
+            </>
           ) : (
             <div className="space-y-2">
               {activeChannel && !liveTvOpen && (
@@ -4696,7 +4590,7 @@ export default function ExplorePage() {
                   </div>
                 </div>
               )}
-              <div className="rounded-2xl border border-white/5 bg-[#121214] p-2 max-h-64 overflow-y-auto" data-testid="rail-tv-list">
+              <div className="rounded-2xl border border-white/5 bg-[#121214] p-2 max-h-64 overflow-y-auto hide-scrollbar" data-testid="rail-tv-list">
               {tvChannels.length === 0 ? (
                 <div className="px-3 py-6 text-center text-xs text-zinc-500">No channels loaded yet.</div>
               ) : (
@@ -4734,20 +4628,12 @@ export default function ExplorePage() {
         </div>
 
         <div className="p-5">
-          <a
-            href="https://buy.stripe.com/00g00g8lqfbhfeo28a"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block w-full text-center px-4 py-3 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 text-black font-black text-xs uppercase tracking-widest hover:from-amber-300 hover:to-amber-400 transition-all"
-            data-testid="button-rail-donate"
-          >
-            Support Reload
-          </a>
           <p className="text-[10px] text-zinc-600 text-center mt-3 leading-relaxed">
-            Reload runs on listener support. Every contribution keeps the airwaves on.
+            Reload by Afrokaviar
           </p>
         </div>
       </aside>
+      </div>
 
       {/* Live TV cinema modal — distinct from documentary modal (red accent + LIVE TV badge) */}
       {liveTvOpen && activeChannel && (
@@ -5336,7 +5222,7 @@ export default function ExplorePage() {
               <X className="w-6 h-6" />
             </button>
           </div>
-          <div className="flex-1 flex items-center justify-center p-6 overflow-auto">
+          <div className="flex-1 flex items-center justify-center p-6 overflow-auto hide-scrollbar">
             {getFileCategory(viewingItem.contentType) === "image" && viewingItem.objectPath && (
               <img 
                 src={viewingItem.objectPath} 
