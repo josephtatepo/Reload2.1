@@ -1578,32 +1578,33 @@ export default function ExplorePage() {
 
       {/* Sub-tab row — full-width so absolute left-1/2 matches the header's centering exactly */}
       {tab === 'social' && (
-        <div className="relative bg-black shrink-0 z-20 flex items-center h-[52px] px-6" data-testid="top-nav-feeds">
-          <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5">
+        <div className="relative bg-black shrink-0 z-20 flex items-center h-[52px] px-2 md:px-6" data-testid="top-nav-feeds">
+          {/* Desktop: absolutely centered; Mobile: flex row filling width */}
+          <div className="w-full flex items-center justify-center gap-1 md:absolute md:left-1/2 md:-translate-x-1/2 md:gap-1.5 md:w-auto">
             <button
               onClick={() => setSocialView("posts")}
-              className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${socialView === "posts" ? "bg-accent text-black" : "bg-zinc-800/60 text-zinc-200 hover:text-white hover:bg-zinc-700/60"}`}
+              className={`px-3 md:px-5 py-2 rounded-lg text-xs md:text-sm font-bold transition-all ${socialView === "posts" ? "bg-accent text-black" : "bg-zinc-800/60 text-zinc-200 hover:text-white hover:bg-zinc-700/60"}`}
               data-testid="button-social-posts"
             >
               {t("social.posts")}
             </button>
             <button
               onClick={() => setSocialView("tracks")}
-              className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${socialView === "tracks" ? "bg-accent text-black" : "bg-zinc-800/60 text-zinc-200 hover:text-white hover:bg-zinc-700/60"}`}
+              className={`px-3 md:px-5 py-2 rounded-lg text-xs md:text-sm font-bold transition-all ${socialView === "tracks" ? "bg-accent text-black" : "bg-zinc-800/60 text-zinc-200 hover:text-white hover:bg-zinc-700/60"}`}
               data-testid="button-social-tracks"
             >
               {t("social.tracks")}
             </button>
             <button
               onClick={() => setSocialView("clips")}
-              className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${socialView === "clips" ? "bg-accent text-black" : "bg-zinc-800/60 text-zinc-200 hover:text-white hover:bg-zinc-700/60"}`}
+              className={`px-3 md:px-5 py-2 rounded-lg text-xs md:text-sm font-bold transition-all ${socialView === "clips" ? "bg-accent text-black" : "bg-zinc-800/60 text-zinc-200 hover:text-white hover:bg-zinc-700/60"}`}
               data-testid="button-social-clips"
             >
               {t("social.clips")}
             </button>
             {socialView !== "posts" && (
               <button
-                className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-accent border border-white/10 px-5 py-2 rounded-full font-bold text-sm transition-all active:scale-95 shrink-0 ml-[50px]"
+                className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-accent border border-white/10 px-3 md:px-5 py-2 rounded-full font-bold text-xs md:text-sm transition-all active:scale-95 shrink-0 ml-2 md:ml-[50px]"
                 data-testid="button-social-action"
                 onClick={() => {
                   if (!isAuthenticated) { window.location.href = "/auth"; return; }
@@ -1614,8 +1615,8 @@ export default function ExplorePage() {
                   }
                 }}
               >
-                {socialView === "tracks" && <><Upload className="w-4 h-4" /><span>{t("social.upload_track")}</span></>}
-                {socialView === "clips" && <><Video className="w-4 h-4" /><span>Add Clip</span></>}
+                {socialView === "tracks" && <><Upload className="w-3.5 h-3.5 md:w-4 md:h-4" /><span>{t("social.upload_track")}</span></>}
+                {socialView === "clips" && <><Video className="w-3.5 h-3.5 md:w-4 md:h-4" /><span>Add Clip</span></>}
               </button>
             )}
           </div>
@@ -4542,7 +4543,7 @@ export default function ExplorePage() {
                   data-testid="tag-radio-version"
                 >
                   <span className="w-1 h-1 rounded-full bg-cyan-400" />
-                  v1.4.0
+                  v1.5.1
                 </span>
               </div>
             </>

@@ -8,6 +8,11 @@ Afrokaviar is a premium Afro-futurist culture operating system for the diaspora.
 
 Preferred communication style: Simple, everyday language.
 
+**Version tag auto-bump**: Every time the user requests a change or republish, bump the small version pill tag rendered under the Radio mini-player on `/explore` (`data-testid="tag-radio-version"` in `client/src/pages/explore.tsx`). Bump rules:
+- **PATCH** (`v1.4.0` → `v1.4.1`) — small UI/copy fixes, bug fixes, minor tweaks
+- **MINOR** (`v1.4.x` → `v1.5.0`) — new features or noticeable UX changes
+- **MAJOR** (`v1.x.x` → `v2.0.0`) — only when the user explicitly asks
+
 ## System Architecture
 
 ### Frontend Architecture

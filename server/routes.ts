@@ -745,6 +745,24 @@ export async function registerRoutes(
     }
   });
 
+  // One-time beta launch: wipe all user-generated content from every table
+  app.delete("/api/admin/reset-all-content", isAuthenticated, isAdmin, async (_req, res) => {
+    try {
+      await db.execute(sql`DELETE FROM order_items`);
+      await db.execute(sql`DELETE FROM orders`);
+      await db.execute(sql`DELETE FROM social_posts`);
+      await db.execute(sql`DELETE FROM social_tracks`);
+      await db.execute(sql`DELETE FROM clips`);
+      await db.execute(sql`DELETE FROM songs`);
+      await db.execute(sql`DELETE FROM library_items`);
+      await db.execute(sql`DELETE FROM user_storage`);
+      res.json({ success: true, message: "All content wiped" });
+    } catch (error) {
+      console.error("Error resetting content:", error);
+      res.status(500).json({ message: "Failed to reset content" });
+    }
+  });
+
   // Admin review queue
   app.get("/api/admin/review-queue", isAuthenticated, isAdmin, async (req, res) => {
     try {

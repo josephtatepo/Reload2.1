@@ -223,6 +223,19 @@ export default function AdminStudio() {
     },
   });
 
+  const resetAllContentMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/admin/reset-all-content", { method: "DELETE", credentials: "include" });
+      if (!res.ok) throw new Error("Failed to reset content");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries();
+      toast({ title: "All content wiped", description: "The platform is now clean for beta launch." });
+    },
+    onError: (err: any) => toast({ title: "Reset failed", description: err.message, variant: "destructive" }),
+  });
+
   const openPromoteDialog = (track: SocialTrack) => {
     setPromoteTrack(track);
     setPromoteTitle(track.title);
@@ -619,6 +632,32 @@ export default function AdminStudio() {
                   Only {ADMIN_ROOT_EMAIL} can invite admins, change roles, or ban users.
                 </div>
               </div>
+
+              {isRootAdmin && (
+                <div className="rounded-2xl border border-red-500/30 bg-red-950/20 p-4" data-testid="card-control-reset">
+                  <div className="flex items-center gap-2 text-xs tracking-[0.18em] text-red-400/70 mb-3">
+                    <Trash2 className="h-4 w-4" />
+                    Danger Zone
+                  </div>
+                  <div className="text-sm text-white/60 mb-3">
+                    Wipe <strong>all</strong> posts, tracks, clips, songs, and library items. Use once for the beta launch clean slate.
+                  </div>
+                  <Button
+                    variant="destructive"
+                    className="w-full"
+                    disabled={resetAllContentMutation.isPending}
+                    onClick={() => {
+                      if (window.confirm("This will permanently delete ALL content across every user. Cannot be undone. Continue?")) {
+                        resetAllContentMutation.mutate();
+                      }
+                    }}
+                    data-testid="button-reset-all-content"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    {resetAllContentMutation.isPending ? "Wiping…" : "Wipe All Content"}
+                  </Button>
+                </div>
+              )}
 
             </div>
           </Card>
